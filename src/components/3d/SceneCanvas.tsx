@@ -13,77 +13,76 @@ interface SceneCanvasProps {
   manualExplodeFactor?: number;
 }
 
-// ── Studio Lighting Rig ──
+// ── Automotive Commercial Studio Lighting ──
 function StudioLighting() {
   return (
     <>
-      {/* Ambient baseline warmth */}
-      <ambientLight intensity={0.65} color="#edf2f7" />
+      {/* Soft Ambient Baseline */}
+      <ambientLight intensity={0.8} color="#f0f4f8" />
 
-      {/* Main Overhead Key Light */}
+      {/* Main Overhead Studio Softbox */}
       <directionalLight
-        position={[6, 9, 7]}
-        intensity={2.8}
+        position={[0, 12, 0]}
+        intensity={2.2}
         color="#ffffff"
+      />
+
+      {/* Primary Key Light (45-degree automotive beauty light) */}
+      <directionalLight
+        position={[6, 7, 7]}
+        intensity={3.2}
+        color="#fffbf0"
         castShadow
-        shadow-mapSize={[1024, 1024]}
+        shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0001}
       />
 
-      {/* Cool Fill Light for metallic paint reflections */}
+      {/* Cool Horizon Fill (creates crisp metallic edge highlights) */}
       <directionalLight
-        position={[-7, 5, -4]}
-        intensity={1.2}
-        color="#93c5fd"
+        position={[-8, 4, 3]}
+        intensity={1.8}
+        color="#a5c9eb"
       />
 
-      {/* Dramatic Back Rim Light (creates halo around vehicle silhouette) */}
+      {/* Sharp Rear Halo / Rim Light */}
       <directionalLight
-        position={[0, 6, -8]}
-        intensity={2.2}
-        color="#fef08a"
+        position={[0, 5, -8]}
+        intensity={2.8}
+        color="#ffe8b3"
       />
 
-      {/* Front Low Accent Lights highlighting the grille & wheels */}
-      <pointLight position={[-2.5, 0.8, 3.8]} intensity={1.5} color="#ffffff" distance={8} />
-      <pointLight position={[2.5, 0.8, 3.8]} intensity={1.5} color="#ffffff" distance={8} />
-
-      {/* Subtle underglow accent */}
-      <pointLight position={[0, 0.2, 0]} intensity={0.8} color="#38bdf8" distance={4} />
+      {/* Low Grille & Wheel Hub Accents */}
+      <pointLight position={[0, 0.8, 4.2]} intensity={1.8} color="#ffffff" distance={6} />
+      <pointLight position={[-2.8, 0.5, 1.5]} intensity={1.2} color="#ffffff" distance={4} />
+      <pointLight position={[2.8, 0.5, 1.5]} intensity={1.2} color="#ffffff" distance={4} />
     </>
   );
 }
 
-// ── Showroom Ground & Reflection Ring ──
+// ── Seamless Endless Showroom Floor ──
 function ShowroomFloor() {
   return (
-    <group position={[0, -0.01, 0]}>
-      {/* Realistic contact shadows under the chassis and wheels */}
+    <group position={[0, 0, 0]}>
+      {/* High-Resolution Soft Contact Shadow Under Vehicle */}
       <ContactShadows
         position={[0, 0, 0]}
-        opacity={0.75}
-        scale={10}
-        blur={1.8}
-        far={3.5}
-        resolution={512}
+        opacity={0.88}
+        scale={14}
+        blur={2.5}
+        far={3.8}
+        resolution={1024}
         color="#020306"
       />
 
-      {/* Circular studio pedestal */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
-        <circleGeometry args={[6.5, 64]} />
+      {/* Endless Studio Floor */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
+        <planeGeometry args={[120, 120]} />
         <meshStandardMaterial
-          color="#0b0f19"
-          roughness={0.4}
-          metalness={0.7}
-          envMapIntensity={0.8}
+          color="#06080d"
+          roughness={0.7}
+          metalness={0.2}
+          envMapIntensity={0.3}
         />
-      </mesh>
-
-      {/* Outer ambient showroom ring */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.03, 0]}>
-        <ringGeometry args={[6.4, 6.45, 64]} />
-        <meshBasicMaterial color="#C9A96E" transparent opacity={0.35} />
       </mesh>
     </group>
   );
@@ -100,7 +99,7 @@ export default function SceneCanvas({
   useEffect(() => {
     setIsClient(true);
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 480);
+      setIsMobile(window.innerWidth < 640);
     };
     checkMobile();
     window.addEventListener("resize", checkMobile);
@@ -114,10 +113,10 @@ export default function SceneCanvas({
   return (
     <div className="relative w-full h-full select-none">
       <Canvas
-        dpr={isMobile ? [1, 1.25] : [1, 2]}
+        dpr={isMobile ? [1, 1.5] : [1, 2]}
         camera={{
-          position: isMobile ? [0, 2.5, 9.5] : [0, 2.2, 7.8],
-          fov: isMobile ? 48 : 38,
+          position: isMobile ? [4.2, 1.6, 6.2] : [3.8, 1.35, 5.0],
+          fov: isMobile ? 38 : 31,
         }}
         gl={{
           antialias: true,
@@ -126,13 +125,13 @@ export default function SceneCanvas({
           alpha: true,
           powerPreference: "high-performance",
           toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 1.15,
+          toneMappingExposure: 1.25,
         }}
         className="w-full h-full"
       >
         <Suspense fallback={null}>
           <StudioLighting />
-          <Environment preset="city" environmentIntensity={0.45} />
+          <Environment preset="city" environmentIntensity={0.65} />
           
           <ShowroomFloor />
 
@@ -147,11 +146,12 @@ export default function SceneCanvas({
             makeDefault
             enablePan={false}
             enableZoom={true}
-            minDistance={4.2}
-            maxDistance={14.0}
-            minPolarAngle={Math.PI / 6} // Don't look completely top-down
-            maxPolarAngle={Math.PI / 2.05} // Don't go underneath the showroom floor
-            dampingFactor={0.05}
+            target={[0, 0.75, 0]} // Center on vehicle centroid
+            minDistance={3.8}
+            maxDistance={12.0}
+            minPolarAngle={Math.PI / 6}
+            maxPolarAngle={Math.PI / 2.05}
+            dampingFactor={0.06}
             enableDamping
           />
         </Suspense>

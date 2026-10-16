@@ -8,7 +8,7 @@ import * as THREE from "three";
 interface CarModelProps {
   modelPath: string;
   scrollProgressRef: React.RefObject<number>;
-  manualExplodeFactor?: number; // Optional manual override for testing
+  manualExplodeFactor?: number;
 }
 
 interface PartRecord {
@@ -27,7 +27,6 @@ export default function CarModel({
   const groupRef = useRef<THREE.Group>(null);
   const smoothProgress = useRef(0);
   const currentExplosion = useRef(0);
-  const rotationY = useRef(0);
 
   // Load the GLTF model
   const gltf = useGLTF(modelPath);
@@ -41,9 +40,9 @@ export default function CarModel({
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z);
-    
-    // Scale car to roughly 4.8 units long in 3D scene
-    const scaleFactor = 4.8 / maxDim;
+
+    // Scale car to fit heroically in the viewport (~5.2 world units)
+    const scaleFactor = 5.2 / maxDim;
     clone.scale.setScalar(scaleFactor);
 
     // Re-center on the showroom floor
@@ -51,35 +50,40 @@ export default function CarModel({
     const centerAfter = boxAfter.getCenter(new THREE.Vector3());
     clone.position.x = -centerAfter.x;
     clone.position.z = -centerAfter.z;
-    clone.position.y = -boxAfter.min.y; // Sit directly on ground plane y = 0
+    clone.position.y = -boxAfter.min.y; // Sit directly on floor y = 0
+
+    // Enhanced PBR properties on clone materials
+    clone.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        child.frustumCulled = false;
+        if (child.material) {
+          child.material.needsUpdate = true;
+        }
+      }
+    });
 
     // Part displacement configuration for exploded-view disassembly
     const partDefinitions: Record<
       string,
       { offset: [number, number, number]; rotOffset?: [number, number, number] }
     > = {
-      Hood: { offset: [0, 0.9, 0.7], rotOffset: [0.35, 0, 0] },
-      Door_F_L: { offset: [-0.95, 0.15, 0.1], rotOffset: [0, -0.3, 0] },
-      Door_F_R: { offset: [0.95, 0.15, 0.1], rotOffset: [0, 0.3, 0] },
-      Door_R_L: { offset: [-0.9, 0.15, -0.2], rotOffset: [0, -0.25, 0] },
-      Door_R_R: { offset: [0.9, 0.15, -0.2], rotOffset: [0, 0.25, 0] },
-      Wheel_FL: { offset: [-0.85, 0, 0.35], rotOffset: [0, -0.15, 0] },
-      Wheel_FR: { offset: [0.85, 0, 0.35], rotOffset: [0, 0.15, 0] },
-      Wheel_RL: { offset: [-0.85, 0, -0.35], rotOffset: [0, -0.1, 0] },
-      Wheel_RR: { offset: [0.85, 0, -0.35], rotOffset: [0, 0.1, 0] },
-      Body: { offset: [0, 0.55, 0], rotOffset: [0, 0, 0] },
+      Hood: { offset: [0, 0.85, 0.65], rotOffset: [0.38, 0, 0] },
+      Door_F_L: { offset: [-1.0, 0.12, 0.1], rotOffset: [0, -0.32, 0] },
+      Door_F_R: { offset: [1.0, 0.12, 0.1], rotOffset: [0, 0.32, 0] },
+      Door_R_L: { offset: [-0.95, 0.12, -0.2], rotOffset: [0, -0.26, 0] },
+      Door_R_R: { offset: [0.95, 0.12, -0.2], rotOffset: [0, 0.26, 0] },
+      Wheel_FL: { offset: [-0.9, 0, 0.35], rotOffset: [0, -0.12, 0] },
+      Wheel_FR: { offset: [0.9, 0, 0.35], rotOffset: [0, 0.12, 0] },
+      Wheel_RL: { offset: [-0.9, 0, -0.35], rotOffset: [0, -0.08, 0] },
+      Wheel_RR: { offset: [0.9, 0, -0.35], rotOffset: [0, 0.08, 0] },
+      Body: { offset: [0, 0.48, 0], rotOffset: [0, 0, 0] },
     };
 
     const indexedParts: PartRecord[] = [];
 
     clone.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-        child.frustumCulled = false;
-      }
-
-      // Check if this object matches one of our isolated vehicle assemblies
       const def = partDefinitions[child.name];
       if (def) {
         indexedParts.push({
@@ -117,7 +121,7 @@ export default function CarModel({
     );
     const p = smoothProgress.current;
 
-    // 2. Disassembly (0% -> 70%) and Reassembly (70% -> 100%)
+    // 2. Disassembly (0% -> 68%) and Reassembly (68% -> 100%)
     let targetExplosion = 0;
     if (manualExplodeFactor !== undefined) {
       targetExplosion = manualExplodeFactor;
@@ -144,7 +148,6 @@ export default function CarModel({
 
     // 3. Apply position & rotation transforms to all isolated components
     parts.forEach((part) => {
-      // Displace position outward
       part.object.position.x = THREE.MathUtils.lerp(
         part.initialPos.x,
         part.initialPos.x + part.explodeOffset.x,
@@ -161,7 +164,6 @@ export default function CarModel({
         explosion
       );
 
-      // Rotate slightly during explosion (doors opening, hood tilting)
       part.object.rotation.x = THREE.MathUtils.lerp(
         part.initialRot.x,
         part.initialRot.x + part.explodeRotOffset.x,
@@ -179,19 +181,15 @@ export default function CarModel({
       );
     });
 
-    // 4. Studio showroom subtle turntable yaw during initial overview
-    if (p < 0.05) {
-      rotationY.current += delta * 0.12;
-      groupRef.current.rotation.y = rotationY.current;
-    } else {
-      // Align to three-quarter studio perspective during scroll
-      const targetAngle = -Math.PI * 0.22 - p * 0.4;
-      groupRef.current.rotation.y = THREE.MathUtils.lerp(
-        groupRef.current.rotation.y,
-        targetAngle,
-        Math.min(1, delta * 3)
-      );
-    }
+    // 4. Subtle showroom stance angle (-35 degrees beauty angle) with subtle responsive turn
+    const baseAngle = -Math.PI * 0.22; // -40 degrees (beauty 3/4 angle showing front + side)
+    const scrollYaw = p * 0.25; // gently turns side toward viewer as parts explode
+    const targetAngle = baseAngle - scrollYaw;
+    groupRef.current.rotation.y = THREE.MathUtils.lerp(
+      groupRef.current.rotation.y,
+      targetAngle,
+      Math.min(1, delta * 4)
+    );
   });
 
   return (
@@ -201,7 +199,6 @@ export default function CarModel({
   );
 }
 
-// Preload models for immediate instant swapping
 useGLTF.preload("/assets/prado.glb");
 useGLTF.preload("/assets/sedan.glb");
 useGLTF.preload("/assets/hatchback.glb");
